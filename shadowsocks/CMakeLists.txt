@@ -7,10 +7,11 @@ cmake_policy(SET CMP0111 NEW)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/contrib/cmake")
 
 #Sources
-include_directories(abstract header source)
+include_directories(abstract header source enum)
 file(GLOB abstract_DIR "abstract/*.h" "abstract/*.hpp" "abstract/*.cpp")
 file(GLOB header_DIR "header/*.h" "header/*.hpp" "header/*.cpp")
 file(GLOB source_DIR "source/*.h" "source/*.hpp" "source/*.cpp")
+file(GLOB enum_DIR "enum/*.h" "enum/*.hpp" "enum/*.cpp")
 
 #BOOST
 set(BOOST_ENABLE_CMAKE ON)
@@ -28,7 +29,7 @@ set(CRYPTOPP_ROOT_DIR "C:/Users/Barguzin/source/repos/Libs/cryptopp-build/crypto
 find_package(spdlog REQUIRED)
 
 #Target
-add_executable (shadowsocks "shadowsocks.cpp" "shadowsocks.h" ${abstract_DIR} ${header_DIR} ${source_DIR})
+add_executable (shadowsocks "shadowsocks.cpp" "shadowsocks.h" ${abstract_DIR} ${header_DIR} ${source_DIR} ${enum_DIR})
 #Boost
 target_link_libraries (shadowsocks PRIVATE Boost::system )
 #CryptoPP

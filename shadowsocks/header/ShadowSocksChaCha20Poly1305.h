@@ -8,15 +8,15 @@
 #include <hkdf.h>
 #include <sha.h>
 
-
-
 #include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/spdlog.h"
 #include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/sinks/stdout_color_sinks.h"
 #include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/fmt/bin_to_hex.h"
 
+#include "CryptoProvider.h"
+
 using namespace CryptoPP;
 
-class ShadowSocksChaCha20Poly1305
+class ShadowSocksChaCha20Poly1305 : public CryptoProvider
 {
 public:
     int encrypt(byte* encryptedMessage, byte* plainText, const short int sizeOfPlainText);
