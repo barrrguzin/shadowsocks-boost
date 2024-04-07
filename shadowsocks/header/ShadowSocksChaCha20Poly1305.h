@@ -12,6 +12,7 @@
 #include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/sinks/stdout_color_sinks.h"
 #include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/fmt/bin_to_hex.h"
 
+#include "ShadowSocksChaCha20Poly1305.h"
 #include "CryptoProvider.h"
 
 using namespace CryptoPP;
@@ -30,6 +31,7 @@ public:
     SimpleKeyingInterface* getDecryptor();
 
     ShadowSocksChaCha20Poly1305(byte* password, int sizeOfPassword, std::shared_ptr<spdlog::logger> logger);
+    ShadowSocksChaCha20Poly1305(ShadowSocksChaCha20Poly1305& origin);
     ~ShadowSocksChaCha20Poly1305();
 
 private:

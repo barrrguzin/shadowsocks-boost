@@ -26,7 +26,7 @@ private:
 	std::vector<Listener>* listeners = new std::vector<Listener>;
 
 	void initLogger();
-	Listener initListener(boost::asio::ip::tcp::endpoint endpoint, std::shared_ptr<CryptoProvider> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
-	std::shared_ptr<CryptoProvider> initCryptoProvider(std::string password, CypherType type, std::shared_ptr<spdlog::logger> logger);
+	Listener initListener(boost::asio::ip::tcp::endpoint endpoint, std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
+	std::shared_ptr<ShadowSocksChaCha20Poly1305> initCryptoProvider(std::string password, CypherType type, std::shared_ptr<spdlog::logger> logger);
 
 };

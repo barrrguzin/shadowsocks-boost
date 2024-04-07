@@ -11,6 +11,11 @@ ShadowSocksChaCha20Poly1305::ShadowSocksChaCha20Poly1305(byte* password, int siz
 	this->logger->trace("Key seted: {:n}", spdlog::to_hex(this->key, this->key + KEY_LENGTH));
 };
 
+ShadowSocksChaCha20Poly1305::ShadowSocksChaCha20Poly1305(ShadowSocksChaCha20Poly1305& origin)
+{
+
+};
+
 ShadowSocksChaCha20Poly1305::~ShadowSocksChaCha20Poly1305()
 {
 

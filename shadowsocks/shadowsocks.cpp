@@ -4,9 +4,9 @@
 
 int main(int argc, char* argv[])
 {
-	if (argc != 1)
+	if (argc != 999/*1*/)
 	{
-		ShadowSocksServer* sss = new ShadowSocksServer(argv[1]);
+		ShadowSocksServer* sss = new ShadowSocksServer(argv[0]);
 		sss->runServer();
 		delete(sss);
 		return 0;
@@ -17,5 +17,3 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 }
-
-

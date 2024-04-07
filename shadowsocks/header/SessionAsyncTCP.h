@@ -1,6 +1,6 @@
 #pragma once
 #include "Session.h"
-#include "CryptoProvider.h"
+#include "ShadowSocksChaCha20Poly1305.h"
 
 #include <boost/asio.hpp>
 #include <boost/asio/io_context.hpp>
@@ -16,12 +16,15 @@
 #include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/spdlog.h"
 #include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/fmt/bin_to_hex.h"
 
-class SessionAsyncTCP : public Session, boost::enable_shared_from_this<SessionAsyncTCP>
+class SessionAsyncTCP : public Session, public boost::enable_shared_from_this<SessionAsyncTCP>
 {
 public:
-	SessionAsyncTCP(boost::asio::ip::tcp::socket socket, std::shared_ptr<CryptoProvider> cryptoProvider, std::shared_ptr<boost::asio::io_context> ioContext, std::shared_ptr<spdlog::logger> logger);
-	void start();
+	SessionAsyncTCP(boost::asio::ip::tcp::socket socket, std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<boost::asio::io_context> ioContext, std::shared_ptr<spdlog::logger> logger);
+	SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<boost::asio::io_context> ioContext, std::shared_ptr<spdlog::logger> logger);
+	SessionAsyncTCP(SessionAsyncTCP& origin);
+	boost::asio::awaitable<void> start();
 	boost::asio::ip::tcp::socket& getClientSocket();
+	~SessionAsyncTCP();
 
 private:
 	int socksSessionBufferSize = 1350;
@@ -31,7 +34,7 @@ private:
 	int serviceNumber = 0;
 	char* serviceBuffer = new char[socksSessionBufferSize];
 
-	std::shared_ptr<CryptoProvider> cryptoProvider;
+	std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider;
 	std::shared_ptr<spdlog::logger> logger;
 	std::shared_ptr<boost::asio::io_context> ioContext;
 	boost::asio::ip::tcp::socket clientSocket;
@@ -39,5 +42,5 @@ private:
 
 	void handleSessionHandshake(boost::system::error_code ec, std::size_t length);
 
-	~SessionAsyncTCP();
+	
 };
