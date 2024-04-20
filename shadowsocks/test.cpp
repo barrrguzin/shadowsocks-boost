@@ -57,6 +57,7 @@ boost::asio::awaitable<void> clientHandler(boost::asio::ip::tcp::socket socket)
 
 	ShadowSocksChaCha20Poly1305* cp = new ShadowSocksChaCha20Poly1305(p, sizeof(pass), logger);
 	boost::asio::async_read(socket, boost::asio::buffer(clientToRemoteServerBuffer, socksSessionBufferSize), boost::asio::transfer_all(),
+
 		[recievedData, cp, address, port, recoveredPayloadLength](boost::system::error_code ec, std::size_t length)
 		{
 			logger->trace("Message recieved: {}", length);

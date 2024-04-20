@@ -25,13 +25,17 @@ public:
 
     int decrypt(byte* recoveredMessage, byte* encryptedPackage, const short int sizeOfEncryptedPackage);
     int decrypt(byte* recoveredMessage, char* encryptedPackage, const short int sizeOfEncryptedPackage);
+    ///
+    int simpleDecrypt(byte* recoveredMessage, char* encryptedPackage, const short int sizeOfEncryptedPackage);
+    int simpleDecrypt(byte* recoveredMessage, byte* encryptedPackage, const short int sizeOfEncryptedPackage);
+    ///
 
+    ///
     int prepareSubSessionKey(SimpleKeyingInterface* ski, byte* salt);
     SimpleKeyingInterface* getEncryptor();
     SimpleKeyingInterface* getDecryptor();
 
     ShadowSocksChaCha20Poly1305(byte* password, int sizeOfPassword, std::shared_ptr<spdlog::logger> logger);
-    ShadowSocksChaCha20Poly1305(ShadowSocksChaCha20Poly1305& origin);
     ~ShadowSocksChaCha20Poly1305();
 
 private:

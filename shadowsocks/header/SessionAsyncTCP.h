@@ -19,28 +19,44 @@
 class SessionAsyncTCP : public Session, public boost::enable_shared_from_this<SessionAsyncTCP>
 {
 public:
-	SessionAsyncTCP(boost::asio::ip::tcp::socket socket, std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<boost::asio::io_context> ioContext, std::shared_ptr<spdlog::logger> logger);
-	SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<boost::asio::io_context> ioContext, std::shared_ptr<spdlog::logger> logger);
-	SessionAsyncTCP(SessionAsyncTCP& origin);
+	SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, boost::asio::io_context& ioContext, std::shared_ptr<spdlog::logger> logger);
 	boost::asio::awaitable<void> start();
 	boost::asio::ip::tcp::socket& getClientSocket();
 	~SessionAsyncTCP();
 
 private:
-	int socksSessionBufferSize = 1350;
-	char* clientToRemoteServerBuffer = new char[socksSessionBufferSize];
-	char* remoteToClientServerBuffer = new char[socksSessionBufferSize];
+	int socksSessionBufferSize = 1440;//1380 maybe used
 
-	int serviceNumber = 0;
-	char* serviceBuffer = new char[socksSessionBufferSize];
+	char* clientToRemoteServerBuffer = new char[socksSessionBufferSize];
+	CryptoPP::byte* recivedMessage = reinterpret_cast<CryptoPP::byte*>(clientToRemoteServerBuffer);
+
+	char* remoteToClientServerBuffer = new char[socksSessionBufferSize];
+	byte* palinTextByte = reinterpret_cast<byte*>(remoteToClientServerBuffer);
+
+	//char* processingBuffer = new char[socksSessionBufferSize];
+	char* recoveredMessage = new char[socksSessionBufferSize];
+	CryptoPP::byte* recovered = reinterpret_cast<CryptoPP::byte*>(recoveredMessage);
+
+	char* encryptedMessage = new char[socksSessionBufferSize];
 
 	std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider;
 	std::shared_ptr<spdlog::logger> logger;
-	std::shared_ptr<boost::asio::io_context> ioContext;
 	boost::asio::ip::tcp::socket clientSocket;
 	boost::asio::ip::tcp::socket remoteSocket;
+	boost::asio::ip::tcp::resolver resolver;
+	//boost::asio::io_context* ioContext;
 
-	void handleSessionHandshake(boost::system::error_code ec, std::size_t length);
 
+	boost::asio::awaitable<void> handleSessionHandshake(int length);
+	boost::asio::awaitable<void> startMessageExchange();
+
+	boost::asio::awaitable<void> initRemoteToLocalStream(int length);
+	boost::asio::awaitable<void> initLocalToRemoteStream(int length);
 	
+	boost::asio::awaitable<void> remoteToLocalStream(); 
+	boost::asio::awaitable<void> localToRemoteStream();
+
+	boost::asio::awaitable<int> receiveAndDecryptChunk(char* destenationBuffer, int destenationBufferSize);
+
+	void initSalt();
 };

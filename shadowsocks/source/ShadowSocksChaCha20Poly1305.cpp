@@ -10,12 +10,12 @@ ShadowSocksChaCha20Poly1305::ShadowSocksChaCha20Poly1305(byte* password, int siz
 	OPENSSL_EVP_BytesToKey(md5, NULL, password, sizeOfPassword, 1, this->key, KEY_LENGTH, NULL, 0);
 	this->logger->trace("Key seted: {:n}", spdlog::to_hex(this->key, this->key + KEY_LENGTH));
 };
-
+/*
 ShadowSocksChaCha20Poly1305::ShadowSocksChaCha20Poly1305(ShadowSocksChaCha20Poly1305& origin)
 {
 
 };
-
+*/
 ShadowSocksChaCha20Poly1305::~ShadowSocksChaCha20Poly1305()
 {
 
@@ -99,6 +99,30 @@ int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, char* encrypted
 	byte* encryptedPackageUnsigned = reinterpret_cast<byte*>(encryptedPackage);
 	return decrypt(recoveredMessage, encryptedPackageUnsigned, sizeOfEncryptedPackage);
 }
+
+int ShadowSocksChaCha20Poly1305::simpleDecrypt(byte* recoveredMessage, char* encryptedPackage, const short int sizeOfEncryptedPackage)
+{
+	byte* encryptedPackageUnsigned = reinterpret_cast<byte*>(encryptedPackage);
+	return simpleDecrypt(recoveredMessage, encryptedPackageUnsigned, sizeOfEncryptedPackage);
+}
+
+int ShadowSocksChaCha20Poly1305::simpleDecrypt(byte* recoveredMessage, byte* encryptedPackage, const short int sizeOfEncryptedPackage)
+{
+	int cypherTextLength = sizeOfEncryptedPackage - TAG_LENGTH;
+	bool decrypted = decryptor.DecryptAndVerify(recoveredMessage,//recovered text buffer
+		encryptedPackage + cypherTextLength,//TAG
+		TAG_LENGTH,
+		decryptionIV,
+		IV_LENGTH,
+		NULL, 0,
+		encryptedPackage,//cypher text
+		cypherTextLength);//cypher text length
+	if (decrypted)
+	{
+		incrementNonce(decryptionIV, IV_LENGTH);
+		return cypherTextLength;
+	}
+};
 
 int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, byte* encryptedPackage, const short int sizeOfEncryptedPackage)
 {

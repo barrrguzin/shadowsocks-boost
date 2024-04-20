@@ -3,6 +3,4 @@
 class Listener
 {
 
-public:
-	void startListener();
 };

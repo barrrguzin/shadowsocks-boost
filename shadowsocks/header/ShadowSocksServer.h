@@ -18,15 +18,17 @@ class ShadowSocksServer
 {
 public:
 	ShadowSocksServer(const char* config);
+	~ShadowSocksServer();
 	void runServer();
 
 private:
 	std::shared_ptr<spdlog::logger> logger;
-	std::vector<boost::asio::ip::tcp::endpoint>* endpoints = new std::vector<boost::asio::ip::tcp::endpoint>;
-	std::vector<Listener>* listeners = new std::vector<Listener>;
+	std::vector<boost::asio::ip::tcp::endpoint> endpoints;
+
+	std::vector<boost::thread> threads;
 
 	void initLogger();
-	Listener initListener(boost::asio::ip::tcp::endpoint endpoint, std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
+	std::shared_ptr<ListenerAcyncTCP> initListener(boost::asio::ip::tcp::endpoint endpoint, std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
 	std::shared_ptr<ShadowSocksChaCha20Poly1305> initCryptoProvider(std::string password, CypherType type, std::shared_ptr<spdlog::logger> logger);
 
 };
