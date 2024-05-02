@@ -8,9 +8,9 @@
 #include <hkdf.h>
 #include <sha.h>
 
-#include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/spdlog.h"
-#include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/sinks/stdout_color_sinks.h"
-#include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/fmt/bin_to_hex.h"
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/fmt/bin_to_hex.h>
 
 #include "ShadowSocksChaCha20Poly1305.h"
 #include "CryptoProvider.h"
@@ -20,20 +20,17 @@ using namespace CryptoPP;
 class ShadowSocksChaCha20Poly1305 : public CryptoProvider
 {
 public:
-    int encrypt(byte* encryptedMessage, byte* plainText, const short int sizeOfPlainText);
+    int encrypt(byte* encryptedMessage, const byte* plainText, const short int sizeOfPlainText);
     int encrypt(char* encryptedMessage, byte* plainText, const short int sizeOfPlainText);
 
-    int decrypt(byte* recoveredMessage, byte* encryptedPackage, const short int sizeOfEncryptedPackage);
+    int decrypt(byte* recoveredMessage, const byte* encryptedPackage, const short int sizeOfEncryptedPackage);
     int decrypt(byte* recoveredMessage, char* encryptedPackage, const short int sizeOfEncryptedPackage);
-    ///
-    int simpleDecrypt(byte* recoveredMessage, char* encryptedPackage, const short int sizeOfEncryptedPackage);
-    int simpleDecrypt(byte* recoveredMessage, byte* encryptedPackage, const short int sizeOfEncryptedPackage);
-    ///
 
-    ///
-    int prepareSubSessionKey(SimpleKeyingInterface* ski, byte* salt);
-    SimpleKeyingInterface* getEncryptor();
-    SimpleKeyingInterface* getDecryptor();
+    int getSaltLength();
+
+    int prepareSubSessionKey(SimpleKeyingInterface& ski, byte* salt);
+    SimpleKeyingInterface& getEncryptor();
+    SimpleKeyingInterface& getDecryptor();
 
     ShadowSocksChaCha20Poly1305(byte* password, int sizeOfPassword, std::shared_ptr<spdlog::logger> logger);
     ~ShadowSocksChaCha20Poly1305();

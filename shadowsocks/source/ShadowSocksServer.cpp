@@ -6,31 +6,29 @@ ShadowSocksServer::ShadowSocksServer(const char* config)
 	//TEST
 	auto endpointTemp = boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string("127.0.0.1"), 7777);
 	endpoints.push_back(endpointTemp);
-	//разбираем конфиг
+	//пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 	
 	initLogger();
 	for (boost::asio::ip::tcp::endpoint endpoint : endpoints)
 	{
 		byte* passwordBytes = reinterpret_cast<byte*>((char*) "123");
 		std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider(new ShadowSocksChaCha20Poly1305(passwordBytes, 3, logger));
-		logger->trace("CP created");
 		//std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider = initCryptoProvider("", CypherType::AEAD, logger);
 		std::shared_ptr<ListenerAcyncTCP> listener = initListener(std::move(endpoint), cryptoProvider, logger);
-		logger->trace("Listener created");
 		threads.emplace_back(boost::thread(boost::bind(&ListenerAcyncTCP::startListener, listener)));
-		logger->trace("Listener started; UC: {}", logger.use_count());	
+		logger->trace("Listener started; Logger UC: {}", logger.use_count());
 	}
 };
 
 ShadowSocksServer::~ShadowSocksServer()
 {
-	std::cout << "-----------------------------------------------ShadowSocksServer------------------------------------------" << std::endl;
+
 };
 
 void ShadowSocksServer::initLogger()
 {
 	logger = spdlog::stdout_color_mt("console");
-	logger->set_level(spdlog::level::critical);
+	logger->set_level(spdlog::level::debug);
 	logger->trace("Logger inited");
 };
 

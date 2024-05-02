@@ -11,8 +11,9 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/thread/thread.hpp>
 
-#include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/spdlog.h"
-#include "C:/Users/Barguzin/source/repos/Libs/spdlog/include/spdlog/sinks/stdout_color_sinks.h"
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/fmt/bin_to_hex.h>
 
 class ShadowSocksServer
 {

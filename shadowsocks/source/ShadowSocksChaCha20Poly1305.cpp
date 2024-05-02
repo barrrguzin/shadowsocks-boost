@@ -21,17 +21,17 @@ ShadowSocksChaCha20Poly1305::~ShadowSocksChaCha20Poly1305()
 
 };
 
-int ShadowSocksChaCha20Poly1305::prepareSubSessionKey(SimpleKeyingInterface* ski, byte* salt)
+int ShadowSocksChaCha20Poly1305::prepareSubSessionKey(SimpleKeyingInterface& ski, byte* salt)
 {
 	this->logger->trace("Salt: {:n}", spdlog::to_hex(salt, salt + SALT_LENGTH));
 	//std::unique_lock<std::mutex> lock(_mutex);
 	byte subSessionKey[KEY_LENGTH];
 	hkdf.DeriveKey(subSessionKey, KEY_LENGTH, this->key, KEY_LENGTH, salt, SALT_LENGTH, INFO, INFO_LENGTH);
-	if (dynamic_cast<ChaCha20Poly1305::Encryption*>(ski) != nullptr) {
-		ski->SetKeyWithIV(subSessionKey, KEY_LENGTH, encryptionIV);
+	if (dynamic_cast<ChaCha20Poly1305::Encryption*>(&ski) != nullptr) {
+		ski.SetKeyWithIV(subSessionKey, KEY_LENGTH, encryptionIV);
 	}
-	else if (dynamic_cast<ChaCha20Poly1305::Decryption*>(ski) != nullptr) {
-		ski->SetKeyWithIV(subSessionKey, KEY_LENGTH, decryptionIV);
+	else if (dynamic_cast<ChaCha20Poly1305::Decryption*>(&ski) != nullptr) {
+		ski.SetKeyWithIV(subSessionKey, KEY_LENGTH, decryptionIV);
 		memcpy(decryptionSubSessionKey, subSessionKey, KEY_LENGTH);
 	}
 	else
@@ -51,15 +51,21 @@ void ShadowSocksChaCha20Poly1305::incrementNonce(byte* iv, short int nonceLength
 
 }
 
-SimpleKeyingInterface* ShadowSocksChaCha20Poly1305::getEncryptor()
+SimpleKeyingInterface& ShadowSocksChaCha20Poly1305::getEncryptor()
 {
-	return &(this->encryptor);
+	return this->encryptor;
 }
 
-SimpleKeyingInterface* ShadowSocksChaCha20Poly1305::getDecryptor()
+SimpleKeyingInterface& ShadowSocksChaCha20Poly1305::getDecryptor()
 {
-	return &(this->decryptor);
+	return this->decryptor;
 }
+
+int ShadowSocksChaCha20Poly1305::getSaltLength()
+{
+	return SALT_LENGTH;
+}
+
 
 int ShadowSocksChaCha20Poly1305::encrypt(char* encryptedMessage, byte* plainText, const short int sizeOfPlainText)
 {
@@ -67,7 +73,7 @@ int ShadowSocksChaCha20Poly1305::encrypt(char* encryptedMessage, byte* plainText
 	return encrypt(encryptedMessageUnsigned, plainText, sizeOfPlainText);
 }
 
-int ShadowSocksChaCha20Poly1305::encrypt(byte* encryptedMessage, byte* plainText, const short int sizeOfPlainText)
+int ShadowSocksChaCha20Poly1305::encrypt(byte* encryptedMessage, const byte* plainText, const short int sizeOfPlainText)
 {
 	this->logger->trace("Encryption start with IV: {:n}", spdlog::to_hex(encryptionIV, encryptionIV + IV_LENGTH));
 	short additionalBytesLength = 0;
@@ -100,13 +106,7 @@ int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, char* encrypted
 	return decrypt(recoveredMessage, encryptedPackageUnsigned, sizeOfEncryptedPackage);
 }
 
-int ShadowSocksChaCha20Poly1305::simpleDecrypt(byte* recoveredMessage, char* encryptedPackage, const short int sizeOfEncryptedPackage)
-{
-	byte* encryptedPackageUnsigned = reinterpret_cast<byte*>(encryptedPackage);
-	return simpleDecrypt(recoveredMessage, encryptedPackageUnsigned, sizeOfEncryptedPackage);
-}
-
-int ShadowSocksChaCha20Poly1305::simpleDecrypt(byte* recoveredMessage, byte* encryptedPackage, const short int sizeOfEncryptedPackage)
+int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, const byte* encryptedPackage, const short int sizeOfEncryptedPackage)
 {
 	int cypherTextLength = sizeOfEncryptedPackage - TAG_LENGTH;
 	bool decrypted = decryptor.DecryptAndVerify(recoveredMessage,//recovered text buffer
@@ -122,57 +122,9 @@ int ShadowSocksChaCha20Poly1305::simpleDecrypt(byte* recoveredMessage, byte* enc
 		incrementNonce(decryptionIV, IV_LENGTH);
 		return cypherTextLength;
 	}
+	logger->critical(sizeOfEncryptedPackage);
+	return -1;
 };
-
-int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, byte* encryptedPackage, const short int sizeOfEncryptedPackage)
-{
-	this->logger->trace("Decryption start with IV: {:n}", spdlog::to_hex(decryptionIV, decryptionIV + IV_LENGTH));
-	this->logger->trace("Trying to decrypt payload length: {:n}", spdlog::to_hex(encryptedPackage, encryptedPackage + sizeOfEncryptedPackage));
-	//decrypt payload size
-	byte encryptedPayloadSizeBuffer[2];
-
-	bool decr = decryptor.DecryptAndVerify(encryptedPayloadSizeBuffer,//recovered text buffer
-		encryptedPackage + ENCRYPTED_PAYLOAD_LENGTH,//TAG
-		TAG_LENGTH,
-		decryptionIV,
-		IV_LENGTH,
-		NULL, 0,
-		encryptedPackage,//cypher text
-		ENCRYPTED_PAYLOAD_LENGTH);//cypher text length
-
-	this->logger->trace("Trying to decrypt message: {:n}", spdlog::to_hex(encryptedPackage, encryptedPackage + sizeOfEncryptedPackage));
-	if (decr)
-	{
-		//replace bytes
-		short encryptedPayloadSize;
-		byte swapArray[] = { encryptedPayloadSizeBuffer[1], encryptedPayloadSizeBuffer[0] };
-		std::memcpy(&encryptedPayloadSize, swapArray, ENCRYPTED_PAYLOAD_LENGTH);
-		this->logger->trace("Payload size decrypted: {}", encryptedPayloadSize);
-		//increment IV
-		incrementNonce(decryptionIV, IV_LENGTH);
-		//decrypt payload
-		if (decryptor.DecryptAndVerify(recoveredMessage,
-			encryptedPackage + ENCRYPTED_PAYLOAD_LENGTH + TAG_LENGTH + encryptedPayloadSize,
-			TAG_LENGTH,
-			decryptionIV,
-			IV_LENGTH,
-			NULL, 0,
-			encryptedPackage + ENCRYPTED_PAYLOAD_LENGTH + TAG_LENGTH,
-			encryptedPayloadSize))
-		{
-			this->logger->trace("Decrypted payload: {:n}", spdlog::to_hex(recoveredMessage, recoveredMessage + encryptedPayloadSize));
-			//increment IV
-			incrementNonce(decryptionIV, IV_LENGTH);
-			return encryptedPayloadSize;
-		}
-		else
-		{
-			this->logger->trace("Unable to decrypt message with payload length {}", encryptedPayloadSize);
-		}
-	}
-	return 0;
-};
-
 
 int ShadowSocksChaCha20Poly1305::OPENSSL_EVP_BytesToKey(HashTransformation& hash,
 	const unsigned char* salt, const unsigned char* data, int dlen,

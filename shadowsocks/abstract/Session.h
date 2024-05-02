@@ -6,5 +6,7 @@ class Session
 {
 public:
 	void start();
-	boost::asio::ip::tcp::socket& getClientSocket();
+	virtual boost::asio::ip::tcp::socket& getClientSocket() = 0;
+	virtual std::string& getSessionIdentifier() = 0;
+	virtual const bool& isOpen() = 0;
 };
