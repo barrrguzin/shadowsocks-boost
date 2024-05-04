@@ -4,5 +4,5 @@
 class Listener
 {
 public:
-    virtual void removeSession(Session* session) = 0;
+    virtual void startListener() = 0;
 };

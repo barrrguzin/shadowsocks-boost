@@ -8,31 +8,29 @@
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/use_awaitable.hpp>
-#include <boost/bind.hpp>
-#include <boost/enable_shared_from_this.hpp>
-#include <boost/asio/placeholders.hpp>
-#include <cryptlib.h>
 #include <boost/asio/awaitable.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/chrono/system_clocks.hpp>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include "Listener.h"
 
-
-class SessionAsyncTCP : public Session, public boost::enable_shared_from_this<SessionAsyncTCP>
+class SessionAsyncTCP : public Session
 {
 public:
-	SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, boost::asio::io_context& ioContext, std::shared_ptr<spdlog::logger> logger);
-	boost::asio::awaitable<void> start();
-	boost::asio::ip::tcp::socket& getClientSocket() override;
-	std::string& getSessionIdentifier() override;
-	const bool& isOpen() override;
+	SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, boost::asio::ip::tcp::resolver* resolver, std::shared_ptr<spdlog::logger> logger, unsigned int timeout = 60);
 	~SessionAsyncTCP();
 
+	boost::asio::awaitable<void> start() override;
+	void setClientSocket(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket) override;
+	std::string& getSessionIdentifier() override;
+
 private:
-	//boost::asio::awaitable<void> timer(std::chrono::steady_clock::duration dur);
+
+	std::chrono::seconds timeout = std::chrono::seconds(60);
+	std::chrono::steady_clock::time_point deadline;
 
 	boost::asio::as_tuple_t<boost::asio::use_awaitable_t<>> completionToken = as_tuple(boost::asio::use_awaitable);
 
@@ -40,10 +38,7 @@ private:
 	std::string remoteIdentifier;
 	std::string remoteHostName;
 
-	boost::asio::awaitable<void> waitToBothChannelClosed();
-	void closeSession();
 	bool isEsteblished = false;
-	bool is_open = true;
 
 	int socksSessionBufferSize = 1440;//1440//1380 maybe used
 	int clientSideBufferSize = 16383; //max shadowsocks payload size with aead cypher
@@ -66,18 +61,19 @@ private:
 	std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider;
 	std::shared_ptr<spdlog::logger> logger;
 
-	boost::asio::ip::tcp::socket clientSocket;
-	boost::asio::ip::tcp::socket remoteSocket;
-	boost::asio::ip::tcp::resolver resolver;
+	std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket;
+	std::shared_ptr<boost::asio::ip::tcp::socket> remoteSocket;
+	boost::asio::ip::tcp::resolver* resolver;
 
 	boost::asio::awaitable<void> handleSessionHandshake();
 	boost::asio::awaitable<void> startMessageExchange();
 
-	boost::asio::awaitable<void> initRemoteToLocalStream(int length);
-	boost::asio::awaitable<void> initLocalToRemoteStream(int length);
-
-	boost::asio::awaitable<void> remoteToLocalStream();
+	boost::asio::awaitable<void> remoteToLocalStream(int length);
 	boost::asio::awaitable<void> localToRemoteStream();
+
+	boost::asio::awaitable<void> watchdog();
+	void closeSession();
+	void resetTimeoutTimer();
 
 	boost::asio::awaitable<int> receiveAndDecryptChunk(char* destenationBuffer, int destenationBufferSize);
 

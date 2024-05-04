@@ -1,12 +1,13 @@
 #pragma once
 
+#include <boost/asio/awaitable.hpp>
 #include <boost/asio/ip/tcp.hpp>
+
 
 class Session
 {
 public:
-	void start();
-	virtual boost::asio::ip::tcp::socket& getClientSocket() = 0;
+	virtual boost::asio::awaitable<void> start() = 0;
+	virtual void setClientSocket(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket) = 0;
 	virtual std::string& getSessionIdentifier() = 0;
-	virtual const bool& isOpen() = 0;
 };
