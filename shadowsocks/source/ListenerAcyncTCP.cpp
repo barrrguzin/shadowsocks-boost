@@ -28,11 +28,9 @@ boost::asio::awaitable<void> ListenerAcyncTCP::startAcceptor()
 	const auto executor = co_await boost::asio::this_coro::executor;
 	this->acceptor = std::make_shared<boost::asio::ip::tcp::acceptor>(executor, localEndpoint);
 
-	boost::asio::ip::tcp::resolver resolver(executor);
-
 	for (;;)
 	{
-		std::shared_ptr<Session> session = initiateSession(cryptoProvider, &resolver, logger);
+		std::shared_ptr<Session> session = initiateSession(cryptoProvider, logger);
 		session->setClientSocket(std::move(std::make_shared<boost::asio::ip::tcp::socket>(co_await this->acceptor->async_accept(boost::asio::use_awaitable))));
 		boost::asio::co_spawn(executor, boost::bind(&ListenerAcyncTCP::handleSession, this, std::move(session)), boost::asio::detached);
 	}
@@ -56,10 +54,11 @@ boost::asio::awaitable<void> ListenerAcyncTCP::handleSession(std::shared_ptr<Ses
 	}
 };
 
-std::shared_ptr<Session> ListenerAcyncTCP::initiateSession(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, boost::asio::ip::tcp::resolver* resolver, std::shared_ptr<spdlog::logger> logger)
+std::shared_ptr<Session> ListenerAcyncTCP::initiateSession(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger)
 {
 	byte* passwordBytes = reinterpret_cast<byte*>((char*)"123");
-	std::shared_ptr<ShadowSocksChaCha20Poly1305> cp(new ShadowSocksChaCha20Poly1305(passwordBytes, 3, logger));
-	std::shared_ptr<Session> sessionPointer = std::make_shared<SessionAsyncTCP>(cp, resolver, logger);
+	//std::shared_ptr<ShadowSocksChaCha20Poly1305> cp(new ShadowSocksChaCha20Poly1305(passwordBytes, 3, logger));
+	std::shared_ptr<ShadowSocksChaCha20Poly1305> cp = std::make_shared<ShadowSocksChaCha20Poly1305>(passwordBytes, 3, logger);
+	std::shared_ptr<Session> sessionPointer = std::make_shared<SessionAsyncTCP>(std::move(cp), logger);
 	return sessionPointer;
 };

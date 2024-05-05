@@ -3,11 +3,10 @@
 
 using namespace boost::asio::experimental::awaitable_operators;
 
-SessionAsyncTCP::SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, boost::asio::ip::tcp::resolver* resolver, std::shared_ptr<spdlog::logger> logger, unsigned int timeout)
+SessionAsyncTCP::SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger, unsigned int timeout)
 {
 	this->cryptoProvider = cryptoProvider;
 	this->logger = logger;
-	this->resolver = resolver;
 	if (timeout > 0)
 	{
 		this->timeout = std::chrono::seconds(timeout);
@@ -35,6 +34,10 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 	{
 		sessionIdentifier = clientSocket->remote_endpoint().address().to_string().append(":").append(std::to_string(clientSocket->remote_endpoint().port()));
 
+		logger->critical("CS: {}", clientSocket.use_count());
+		logger->critical("CP: {}", cryptoProvider.use_count());
+		logger->critical("LG: {}", logger.use_count());
+
 		logger->info("Trying to start the session with client {}:{}...", clientSocket->remote_endpoint().address().to_string(), clientSocket->remote_endpoint().port());
 		auto [errorCode, received] = co_await boost::asio::async_read(*clientSocket, boost::asio::buffer(clientToRemoteServerBuffer, socksSessionBufferSize),
 			boost::asio::transfer_exactly(cryptoProvider->getSaltLength()), completionToken);
@@ -42,7 +45,13 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 		if (errorCode)
 			throw std::runtime_error("Can not receive salt");
 
-		co_await handleSessionHandshake();
+		co_await (handleSessionHandshake() || watchdog());
+
+
+		const auto executor = boost::asio::this_coro::executor;
+		boost::asio::steady_timer timer(clientSocket->get_executor());
+		timer.expires_at(std::chrono::steady_clock::now() + std::chrono::seconds(10));
+		co_await timer.async_wait(completionToken);
 	}
 	catch (const Exception& exception)
 	{
@@ -54,6 +63,9 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 SessionAsyncTCP::~SessionAsyncTCP()
 {
 	logger->warn("Stop proxy session: {} X<->X {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
+	logger->critical("CS: {}", clientSocket.use_count());
+	logger->critical("CP: {}", cryptoProvider.use_count());
+	logger->critical("LG: {}", logger.use_count());
 };
 
 std::string& SessionAsyncTCP::getSessionIdentifier()
@@ -125,6 +137,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 {
 	try
 	{
+		resetTimeoutTimer();
 		cryptoProvider->prepareSubSessionKey(cryptoProvider->getDecryptor(), recivedMessage);
 		int payloadLength = co_await receiveAndDecryptChunk(recoveredMessage, socksSessionBufferSize);
 		byte addressType = recovered[0];
@@ -136,11 +149,13 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 		std::memcpy(&port, recovered + addressLength + 2, 2);
 		port = ntohs(port);
 
+		const auto executor = co_await boost::asio::this_coro::executor;
+		boost::asio::ip::tcp::resolver resolver(executor);
+
 		boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), remoteHostName, std::to_string(port));
-		boost::asio::ip::tcp::resolver::iterator endpoints = resolver->resolve(query);
+		boost::asio::ip::tcp::resolver::iterator endpoints = resolver.resolve(query);
 		boost::asio::ip::tcp::endpoint endpoint = endpoints->endpoint();
 
-		const auto executor = co_await boost::asio::this_coro::executor;
 		this->remoteSocket = std::make_shared<boost::asio::ip::tcp::socket>(executor);
 		remoteSocket->connect(endpoint);
 
@@ -148,7 +163,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 		{
 			remoteIdentifier = endpoint.address().to_string().append(":").append(std::to_string(endpoint.port()));
 			logger->info("Start session: {} -> {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
-			co_await startMessageExchange();
+			co_await (startMessageExchange() || watchdog());
 		}
 		else
 		{
@@ -180,6 +195,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::startMessageExchange()
 {
 	try
 	{
+		resetTimeoutTimer();
 		int payloadLength = co_await receiveAndDecryptChunk(recoveredMessage, socksSessionBufferSize);
 		const auto executor = co_await boost::asio::this_coro::executor;
 
@@ -268,6 +284,7 @@ char* SessionAsyncTCP::setSalt()
 	char* SALT = new char[cryptoProvider->getSaltLength()];
 	cryptoProvider->prepareSubSessionKey(cryptoProvider->getEncryptor(), (byte*) SALT);
 	std::memcpy(encryptedMessage, SALT, cryptoProvider->getSaltLength());
+	delete[] SALT;
 	return &(encryptedMessage[cryptoProvider->getSaltLength()]);
 };
 

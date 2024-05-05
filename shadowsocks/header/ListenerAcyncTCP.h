@@ -28,6 +28,6 @@ private:
 	std::shared_ptr<boost::asio::io_context> ioContext;
 
 	boost::asio::awaitable<void> startAcceptor();
-	std::shared_ptr<Session> initiateSession(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, boost::asio::ip::tcp::resolver* resolver, std::shared_ptr<spdlog::logger> logger);
+	std::shared_ptr<Session> initiateSession(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
 	boost::asio::awaitable<void> handleSession(std::shared_ptr<Session> sessionToStart);
 };
