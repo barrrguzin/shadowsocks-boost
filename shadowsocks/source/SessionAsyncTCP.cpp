@@ -22,6 +22,19 @@ void SessionAsyncTCP::setClientSocket(std::shared_ptr<boost::asio::ip::tcp::sock
 	this->clientSocket=clientSocket;
 }
 
+void SessionAsyncTCP::setIoContext(std::shared_ptr<boost::asio::io_context> ioContext)
+{
+	this->ioContext = ioContext;
+	if (clientSocket == nullptr)
+		std::runtime_error("Client socket must be seted before io context");
+
+	auto fd = clientSocket->release();
+
+	std::shared_ptr<boost::asio::ip::tcp::socket> newSocket(new boost::asio::ip::tcp::socket(*ioContext));
+	newSocket->assign(boost::asio::ip::tcp::v4(), fd);
+	this->clientSocket = newSocket;
+}
+
 void SessionAsyncTCP::resetTimeoutTimer()
 {
 	deadline = std::max(deadline, std::chrono::steady_clock::now() + timeout);
@@ -33,11 +46,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 	try
 	{
 		sessionIdentifier = clientSocket->remote_endpoint().address().to_string().append(":").append(std::to_string(clientSocket->remote_endpoint().port()));
-
-		logger->critical("CS: {}", clientSocket.use_count());
-		logger->critical("CP: {}", cryptoProvider.use_count());
 		logger->critical("LG: {}", logger.use_count());
-
 		logger->info("Trying to start the session with client {}:{}...", clientSocket->remote_endpoint().address().to_string(), clientSocket->remote_endpoint().port());
 		auto [errorCode, received] = co_await boost::asio::async_read(*clientSocket, boost::asio::buffer(clientToRemoteServerBuffer, socksSessionBufferSize),
 			boost::asio::transfer_exactly(cryptoProvider->getSaltLength()), completionToken);
@@ -47,13 +56,11 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 
 		co_await (handleSessionHandshake() || watchdog());
 
-
-		const auto executor = boost::asio::this_coro::executor;
 		boost::asio::steady_timer timer(clientSocket->get_executor());
 		timer.expires_at(std::chrono::steady_clock::now() + std::chrono::seconds(10));
 		co_await timer.async_wait(completionToken);
 	}
-	catch (const Exception& exception)
+	catch (const std::exception& exception)
 	{
 		logger->critical("Exception caught in start: {}", exception.what());
 		throw std::exception(exception);
@@ -63,8 +70,6 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 SessionAsyncTCP::~SessionAsyncTCP()
 {
 	logger->warn("Stop proxy session: {} X<->X {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
-	logger->critical("CS: {}", clientSocket.use_count());
-	logger->critical("CP: {}", cryptoProvider.use_count());
 	logger->critical("LG: {}", logger.use_count());
 };
 
@@ -126,7 +131,7 @@ boost::asio::awaitable<int> SessionAsyncTCP::receiveAndDecryptChunk(char* desten
 		logger->debug("{} byte package recieved from {} and decrypted succsessfuly", palyoadLength, sessionIdentifier);
 		co_return palyoadLength;
 	}
-	catch (const Exception& exception)
+	catch (const std::exception& exception)
 	{
 		logger->critical("Exception caught in receiveAndDecryptChunk: {}", exception.what());
 		throw std::exception(exception);
@@ -149,14 +154,13 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 		std::memcpy(&port, recovered + addressLength + 2, 2);
 		port = ntohs(port);
 
-		const auto executor = co_await boost::asio::this_coro::executor;
-		boost::asio::ip::tcp::resolver resolver(executor);
+		boost::asio::ip::tcp::resolver resolver(clientSocket->get_executor());
 
 		boost::asio::ip::tcp::resolver::query query(boost::asio::ip::tcp::v4(), remoteHostName, std::to_string(port));
 		boost::asio::ip::tcp::resolver::iterator endpoints = resolver.resolve(query);
 		boost::asio::ip::tcp::endpoint endpoint = endpoints->endpoint();
 
-		this->remoteSocket = std::make_shared<boost::asio::ip::tcp::socket>(executor);
+		this->remoteSocket = std::make_shared<boost::asio::ip::tcp::socket>(clientSocket->get_executor());
 		remoteSocket->connect(endpoint);
 
 		if (remoteSocket->is_open())
@@ -171,7 +175,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 			throw std::runtime_error("Unable to start session");
 		}
 	}
-	catch (const Exception& exception)
+	catch (const std::exception& exception)
 	{
 		logger->critical("Exception caught in handleSessionHandshake: {}", exception.what());
 		throw std::exception(exception);
@@ -180,7 +184,6 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 
 boost::asio::awaitable<void> SessionAsyncTCP::watchdog()
 {
-	const auto executor = boost::asio::this_coro::executor;
 	boost::asio::steady_timer timer(clientSocket->get_executor());
 	auto now = std::chrono::steady_clock::now();
 	while (deadline > now)
@@ -197,7 +200,6 @@ boost::asio::awaitable<void> SessionAsyncTCP::startMessageExchange()
 	{
 		resetTimeoutTimer();
 		int payloadLength = co_await receiveAndDecryptChunk(recoveredMessage, socksSessionBufferSize);
-		const auto executor = co_await boost::asio::this_coro::executor;
 
 		auto [ecs, send] = co_await remoteSocket->async_send(boost::asio::buffer(recoveredMessage, payloadLength), completionToken);
 		if (ecs)
@@ -211,7 +213,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::startMessageExchange()
 		co_await (localToRemoteStream() || remoteToLocalStream(received) || watchdog());
 		closeSession();
 	}
-	catch (const Exception& exception)
+	catch (const std::exception& exception)
 	{
 		logger->critical("Exception caught in startMessageExchange: {}", exception.what());
 		throw std::exception(exception);
@@ -237,7 +239,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::localToRemoteStream()
 		isEsteblished = false;
 		logger->debug("Stop local to remote stream: {} X-> {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
 	}
-	catch (const Exception& exception)
+	catch (const std::exception& exception)
 	{
 		logger->critical("Exception caught in localToRemoteStream: {}", exception.what());
 		throw std::exception(exception);
@@ -272,7 +274,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::remoteToLocalStream(int length)
 		isEsteblished = false;
 		logger->debug("Stop remote to local stream: {} <-X {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
 	}
-	catch (const Exception& exception)
+	catch (const std::exception& exception)
 	{
 		logger->critical("Exception caught in initRemoteToLocalStream: {}", exception.what());
 		throw std::exception(exception);

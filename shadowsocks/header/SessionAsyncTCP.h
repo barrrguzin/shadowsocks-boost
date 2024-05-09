@@ -25,6 +25,7 @@ public:
 
 	boost::asio::awaitable<void> start() override;
 	void setClientSocket(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket) override;
+	void setIoContext(std::shared_ptr<boost::asio::io_context> ioContext) override;
 	std::string& getSessionIdentifier() override;
 
 private:
@@ -63,6 +64,7 @@ private:
 
 	std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket;
 	std::shared_ptr<boost::asio::ip::tcp::socket> remoteSocket;
+	std::shared_ptr<boost::asio::io_context> ioContext;
 
 	boost::asio::awaitable<void> handleSessionHandshake();
 	boost::asio::awaitable<void> startMessageExchange();
