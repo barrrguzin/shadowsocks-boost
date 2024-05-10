@@ -1,7 +1,3 @@
-//
-// Created by neko on 5/7/24.
-//
-
 #ifndef SESSIONHANDLERTHREAD_H
 #define SESSIONHANDLERTHREAD_H
 #include <queue>
@@ -18,8 +14,8 @@ class SessionHandlerThread
 {
 public:
     SessionHandlerThread(int threadNumber, std::shared_ptr<spdlog::logger> logger);
-    SessionHandlerThread(SessionHandlerThread&&);
-    SessionHandlerThread(const SessionHandlerThread&);
+    //SessionHandlerThread(SessionHandlerThread&& source) = default;
+    SessionHandlerThread(const SessionHandlerThread& source) = default;
     ~SessionHandlerThread();
     void initThread();
     void startSession(std::shared_ptr<Session> session);
@@ -27,9 +23,11 @@ public:
 private:
     int threadNumber;
     std::queue<std::shared_ptr<Session>> sessionQueue;
-    std::shared_ptr<boost::asio::io_context> ioContext;
     boost::asio::as_tuple_t<boost::asio::use_awaitable_t<>> completionToken = as_tuple(boost::asio::use_awaitable);
+
+    std::shared_ptr<boost::asio::io_context> ioContext;
     std::shared_ptr<spdlog::logger> logger;
+
     boost::asio::awaitable<void> waitSession();
     boost::asio::awaitable<void> runSession(std::shared_ptr<Session> session);
 };

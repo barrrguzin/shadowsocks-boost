@@ -24,8 +24,8 @@ public:
 	~SessionAsyncTCP();
 
 	boost::asio::awaitable<void> start() override;
-	void setClientSocket(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket) override;
-	void setIoContext(std::shared_ptr<boost::asio::io_context> ioContext) override;
+	void setClientSocket(boost::asio::ip::tcp::socket&& clientSocket) override;
+	void changeClientSocketIoContext(boost::asio::io_context& ioContext) override;
 	std::string& getSessionIdentifier() override;
 
 private:
@@ -44,27 +44,22 @@ private:
 	int socksSessionBufferSize = 1440;//1440//1380 maybe used
 	int clientSideBufferSize = 16383; //max shadowsocks payload size with aead cypher
 
-	std::shared_ptr<std::vector<char>> clientToRemoteServerBufferP = std::make_shared<std::vector<char>>(clientSideBufferSize + 1024);
-	char* clientToRemoteServerBuffer = &((*clientToRemoteServerBufferP)[0]);
-	byte* recivedMessage = reinterpret_cast<CryptoPP::byte*>(clientToRemoteServerBuffer);
+	std::vector<char> clientToRemoteServerBuffer = std::vector<char>(clientSideBufferSize + 1024);
+	byte* recivedMessage = reinterpret_cast<CryptoPP::byte*>(&(clientToRemoteServerBuffer[0]));
 
-	std::shared_ptr<std::vector<char>> remoteToClientServerBufferP = std::make_shared<std::vector<char>>(socksSessionBufferSize + 1024);
-	char* remoteToClientServerBuffer = &((*remoteToClientServerBufferP)[0]);
-	byte* palinTextByte = reinterpret_cast<byte*>(remoteToClientServerBuffer);
+	std::vector<char> remoteToClientServerBuffer = std::vector<char>(socksSessionBufferSize + 1024);
+	byte* palinTextByte = reinterpret_cast<byte*>(&(remoteToClientServerBuffer[0]));
 
-	std::shared_ptr<std::vector<char>> recoveredMessageP = std::make_shared<std::vector<char>>(clientSideBufferSize + 1024);
-	char* recoveredMessage = &((*recoveredMessageP)[0]);
-	byte* recovered = reinterpret_cast<CryptoPP::byte*>(recoveredMessage);
+	std::vector<char> recoveredMessage = std::vector<char>(clientSideBufferSize + 1024);
+	byte* recovered = reinterpret_cast<CryptoPP::byte*>(&(recoveredMessage[0]));
 
-	std::shared_ptr<std::vector<char>> encryptedMessageP = std::make_shared<std::vector<char>>(socksSessionBufferSize + 66 + 1024);
-	char* encryptedMessage = &((*encryptedMessageP)[0]);
+	std::vector<char> encryptedMessage = std::vector<char>(socksSessionBufferSize + 66 + 1024);
 
 	std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider;
 	std::shared_ptr<spdlog::logger> logger;
 
-	std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket;
-	std::shared_ptr<boost::asio::ip::tcp::socket> remoteSocket;
-	std::shared_ptr<boost::asio::io_context> ioContext;
+	std::optional<boost::asio::ip::tcp::socket> clientSocket;
+	std::optional<boost::asio::ip::tcp::socket> remoteSocket;
 
 	boost::asio::awaitable<void> handleSessionHandshake();
 	boost::asio::awaitable<void> startMessageExchange();

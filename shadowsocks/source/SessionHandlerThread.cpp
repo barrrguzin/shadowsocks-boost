@@ -12,14 +12,6 @@ SessionHandlerThread::SessionHandlerThread(int threadNumber, std::shared_ptr<spd
     ioContext = std::make_shared<boost::asio::io_context>();
 }
 
-SessionHandlerThread::SessionHandlerThread(SessionHandlerThread &&)
-{
-}
-
-SessionHandlerThread::SessionHandlerThread(const SessionHandlerThread &)
-{
-}
-
 SessionHandlerThread::~SessionHandlerThread()
 {
     logger->critical("THREAD DESTR");
@@ -34,7 +26,7 @@ void SessionHandlerThread::initThread()
 
 void SessionHandlerThread::startSession(std::shared_ptr<Session> session)
 {
-    session->setIoContext(ioContext);
+    session->changeClientSocketIoContext(*ioContext);
     sessionQueue.emplace(std::move(session));
 }
 

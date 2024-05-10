@@ -17,22 +17,19 @@ SessionAsyncTCP::SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cr
 	}
 };
 
-void SessionAsyncTCP::setClientSocket(std::shared_ptr<boost::asio::ip::tcp::socket> clientSocket)
+void SessionAsyncTCP::setClientSocket(boost::asio::ip::tcp::socket&& clientSocket)
 {
-	this->clientSocket=clientSocket;
+	this->clientSocket = std::move(clientSocket);
 }
 
-void SessionAsyncTCP::setIoContext(std::shared_ptr<boost::asio::io_context> ioContext)
+void SessionAsyncTCP::changeClientSocketIoContext(boost::asio::io_context& ioContext)
 {
-	this->ioContext = ioContext;
-	if (clientSocket == nullptr)
+	if (!clientSocket.has_value())
 		std::runtime_error("Client socket must be seted before io context");
 
 	auto fd = clientSocket->release();
-
-	std::shared_ptr<boost::asio::ip::tcp::socket> newSocket(new boost::asio::ip::tcp::socket(*ioContext));
-	newSocket->assign(boost::asio::ip::tcp::v4(), fd);
-	this->clientSocket = newSocket;
+	this->clientSocket.emplace(ioContext);
+	clientSocket->assign(boost::asio::ip::tcp::v4(), fd);
 }
 
 void SessionAsyncTCP::resetTimeoutTimer()
@@ -45,6 +42,8 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 {
 	try
 	{
+		if (!clientSocket.has_value())
+			throw std::runtime_error("Client socket is not seted");
 		sessionIdentifier = clientSocket->remote_endpoint().address().to_string().append(":").append(std::to_string(clientSocket->remote_endpoint().port()));
 		logger->critical("LG: {}", logger.use_count());
 		logger->info("Trying to start the session with client {}:{}...", clientSocket->remote_endpoint().address().to_string(), clientSocket->remote_endpoint().port());
@@ -111,7 +110,7 @@ boost::asio::awaitable<int> SessionAsyncTCP::receiveAndDecryptChunk(char* desten
 		int reReaderSize = 0;
 		while (received < payloadSizeToRead)
 		{
-			std::tie(errorCode, reReaderSize) = co_await boost::asio::async_read(*clientSocket, boost::asio::buffer(clientToRemoteServerBuffer+received, socksSessionBufferSize),
+			std::tie(errorCode, reReaderSize) = co_await boost::asio::async_read(*clientSocket, boost::asio::buffer(&(clientToRemoteServerBuffer[0])+received, socksSessionBufferSize),
 			boost::asio::transfer_exactly(payloadSizeToRead-received), completionToken);
 
 			if (errorCode)
@@ -144,7 +143,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 	{
 		resetTimeoutTimer();
 		cryptoProvider->prepareSubSessionKey(cryptoProvider->getDecryptor(), recivedMessage);
-		int payloadLength = co_await receiveAndDecryptChunk(recoveredMessage, socksSessionBufferSize);
+		int payloadLength = co_await receiveAndDecryptChunk(&(recoveredMessage[0]), socksSessionBufferSize);
 		byte addressType = recovered[0];
 		short addressLength = recovered[1];
 		char* addressT = &recoveredMessage[2];
@@ -160,7 +159,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 		boost::asio::ip::tcp::resolver::iterator endpoints = resolver.resolve(query);
 		boost::asio::ip::tcp::endpoint endpoint = endpoints->endpoint();
 
-		this->remoteSocket = std::make_shared<boost::asio::ip::tcp::socket>(clientSocket->get_executor());
+		this->remoteSocket.emplace(clientSocket->get_executor());
 		remoteSocket->connect(endpoint);
 
 		if (remoteSocket->is_open())
@@ -199,7 +198,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::startMessageExchange()
 	try
 	{
 		resetTimeoutTimer();
-		int payloadLength = co_await receiveAndDecryptChunk(recoveredMessage, socksSessionBufferSize);
+		int payloadLength = co_await receiveAndDecryptChunk(&(recoveredMessage[0]), socksSessionBufferSize);
 
 		auto [ecs, send] = co_await remoteSocket->async_send(boost::asio::buffer(recoveredMessage, payloadLength), completionToken);
 		if (ecs)
@@ -228,7 +227,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::localToRemoteStream()
 		while (isEsteblished)
 		{
 			resetTimeoutTimer();
-			int payloadLength = co_await receiveAndDecryptChunk(recoveredMessage, socksSessionBufferSize);
+			int payloadLength = co_await receiveAndDecryptChunk(&(recoveredMessage[0]), socksSessionBufferSize);
 			if (payloadLength <= 0)
 				break;
 
@@ -266,7 +265,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::remoteToLocalStream(int length)
 			if (ecr || received <= 0)
 				break;
 
-			int encryptedMessageLength = cryptoProvider->encrypt(encryptedMessage, palinTextByte, received);
+			int encryptedMessageLength = cryptoProvider->encrypt(&(encryptedMessage[0]), palinTextByte, received);
 			auto [ecs, send] = co_await clientSocket->async_send(boost::asio::buffer(encryptedMessage, encryptedMessageLength), completionToken);
 			if (ecs)
 				break;
@@ -285,19 +284,19 @@ char* SessionAsyncTCP::setSalt()
 {
 	char* SALT = new char[cryptoProvider->getSaltLength()];
 	cryptoProvider->prepareSubSessionKey(cryptoProvider->getEncryptor(), (byte*) SALT);
-	std::memcpy(encryptedMessage, SALT, cryptoProvider->getSaltLength());
+	std::memcpy(&(encryptedMessage[0]), SALT, cryptoProvider->getSaltLength());
 	delete[] SALT;
 	return &(encryptedMessage[cryptoProvider->getSaltLength()]);
 };
 
 void SessionAsyncTCP::closeSession()
 {
-	if (clientSocket != nullptr)
+	if (clientSocket.has_value())
 	{
 		clientSocket->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
 		clientSocket->close();
 	}
-	if (remoteSocket != nullptr)
+	if (remoteSocket.has_value())
 	{
 		remoteSocket->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
 		remoteSocket->close();

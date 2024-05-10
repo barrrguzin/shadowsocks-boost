@@ -21,6 +21,6 @@ private:
     bool ready = false;
     std::shared_ptr<spdlog::logger> logger;
     std::vector<boost::thread> threads;
-    std::shared_ptr<std::vector<std::shared_ptr<SessionHandlerThread>>> workers;
+    std::vector<SessionHandlerThread> workers;
 };
 

@@ -28,9 +28,9 @@ public:
 
     int getSaltLength();
 
-    int prepareSubSessionKey(SimpleKeyingInterface& ski, byte* salt);
-    SimpleKeyingInterface& getEncryptor();
-    SimpleKeyingInterface& getDecryptor();
+    int prepareSubSessionKey(SimpleKeyingInterface& ski, byte* salt) override;
+    SimpleKeyingInterface& getEncryptor() override;
+    SimpleKeyingInterface& getDecryptor() override;
 
     ShadowSocksChaCha20Poly1305(byte* password, int sizeOfPassword, std::shared_ptr<spdlog::logger> logger);
     ~ShadowSocksChaCha20Poly1305();

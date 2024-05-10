@@ -27,6 +27,7 @@ int ShadowSocksChaCha20Poly1305::prepareSubSessionKey(SimpleKeyingInterface& ski
 	//std::unique_lock<std::mutex> lock(_mutex);
 	byte subSessionKey[KEY_LENGTH];
 	hkdf.DeriveKey(subSessionKey, KEY_LENGTH, this->key, KEY_LENGTH, salt, SALT_LENGTH, INFO, INFO_LENGTH);
+
 	if (dynamic_cast<ChaCha20Poly1305::Encryption*>(&ski) != nullptr) {
 		ski.SetKeyWithIV(subSessionKey, KEY_LENGTH, encryptionIV);
 	}
