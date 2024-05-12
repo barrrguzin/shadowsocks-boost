@@ -1,5 +1,7 @@
 #include "ShadowSocksServer.h"
 
+#include "CryptoProviderFactory.h"
+
 
 ShadowSocksServer::ShadowSocksServer(const char* config)
 {
@@ -10,9 +12,9 @@ ShadowSocksServer::ShadowSocksServer(const char* config)
 	initLogger();
 	for (boost::asio::ip::tcp::endpoint endpoint : endpoints)
 	{
-		byte* passwordBytes = reinterpret_cast<byte*>((char*) "123");
-		std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider(new ShadowSocksChaCha20Poly1305(passwordBytes, 3, logger));
-		std::shared_ptr<Listener> listener = initListener(std::move(endpoint), cryptoProvider, logger);
+		std::string pass("123");
+		std::shared_ptr<CryptoProvider> cryptoProvider = initCryptoProvider(pass, Cypher::ChaCha20Poly1305, logger);
+		std::shared_ptr<Listener> listener = initListener(std::move(endpoint), 10, std::move(cryptoProvider), logger);
 		threads.emplace_back(boost::thread(boost::bind(&Listener::startListener, listener)));
 		logger->trace("Listener started; Logger UC: {}", logger.use_count());
 	}
@@ -38,15 +40,13 @@ void ShadowSocksServer::runServer()
 	}
 };
 
-std::shared_ptr<Listener> ShadowSocksServer::initListener(boost::asio::ip::tcp::endpoint endpoint, std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger)
+std::shared_ptr<Listener> ShadowSocksServer::initListener(boost::asio::ip::tcp::endpoint endpoint, unsigned short numberOfThreads, std::shared_ptr<CryptoProvider> cryptoProvider, std::shared_ptr<spdlog::logger> logger)
 {
-	std::shared_ptr<Listener> listenerPionter = std::make_shared<ListenerAcyncTCP>(endpoint, cryptoProvider, logger);
-	return listenerPionter;
-};
+	return std::make_shared<ListenerAcyncTCP>(endpoint, std::move(SessionHandlerThreadManager(numberOfThreads, logger)), cryptoProvider, logger);
+}
 
-std::shared_ptr<ShadowSocksChaCha20Poly1305> initCryptoProvider(std::string password, CypherType type, std::shared_ptr<spdlog::logger> logger)
+std::shared_ptr<CryptoProvider> ShadowSocksServer::initCryptoProvider(std::string password, Cypher type,
+	std::shared_ptr<spdlog::logger> logger)
 {
-	byte* passwordBytes = reinterpret_cast<byte*>((char*) password.c_str());
-	std::shared_ptr<ShadowSocksChaCha20Poly1305> sptr(new ShadowSocksChaCha20Poly1305(passwordBytes, password.length(), logger));
-	return sptr;
+	return CryptoProviderFactory::getCryptoProvider(type, password.c_str(), password.size(), logger);;
 };

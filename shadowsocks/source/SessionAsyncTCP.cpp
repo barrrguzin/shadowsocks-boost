@@ -3,7 +3,7 @@
 
 using namespace boost::asio::experimental::awaitable_operators;
 
-SessionAsyncTCP::SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger, unsigned int timeout)
+SessionAsyncTCP::SessionAsyncTCP(std::shared_ptr<CryptoProvider> cryptoProvider, std::shared_ptr<spdlog::logger> logger, unsigned int timeout)
 {
 	this->cryptoProvider = cryptoProvider;
 	this->logger = logger;
@@ -251,7 +251,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::remoteToLocalStream(int length)
 	try
 	{
 		char* addressAfterSalt = setSalt();
-		int encryptedMessageLength = cryptoProvider->encrypt(addressAfterSalt, palinTextByte, length);
+		int encryptedMessageLength = cryptoProvider->encrypt(reinterpret_cast<byte*>(addressAfterSalt), palinTextByte, length);
 
 		auto [ec, send] = co_await clientSocket->async_send(boost::asio::buffer(encryptedMessage, encryptedMessageLength + cryptoProvider->getSaltLength()), completionToken);
 		if (ec)
@@ -265,7 +265,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::remoteToLocalStream(int length)
 			if (ecr || received <= 0)
 				break;
 
-			int encryptedMessageLength = cryptoProvider->encrypt(&(encryptedMessage[0]), palinTextByte, received);
+			int encryptedMessageLength = cryptoProvider->encrypt(encrypted, palinTextByte, received);
 			auto [ecs, send] = co_await clientSocket->async_send(boost::asio::buffer(encryptedMessage, encryptedMessageLength), completionToken);
 			if (ecs)
 				break;

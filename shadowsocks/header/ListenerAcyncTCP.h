@@ -10,10 +10,12 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#include "SessionHandlerThreadManager.h"
+
 class ListenerAcyncTCP : public Listener
 {
 public:
-	ListenerAcyncTCP(boost::asio::ip::tcp::endpoint endpoint, std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
+	ListenerAcyncTCP(boost::asio::ip::tcp::endpoint endpoint, SessionHandlerThreadManager sessionHandlerThreadManager, std::shared_ptr<CryptoProvider> cryptoProviderPrototype, std::shared_ptr<spdlog::logger> logger);
 	~ListenerAcyncTCP();
 	void startListener() override;
 
@@ -21,11 +23,11 @@ private:
 	unsigned long sessionCounter = 0;
 	boost::asio::ip::tcp::endpoint localEndpoint;
 	boost::asio::io_context ioContext;
+	SessionHandlerThreadManager sessionHandlerThreadManager;
 
-	std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider;
+	std::shared_ptr<CryptoProvider> cryptoProviderPrototype;
 	std::shared_ptr<spdlog::logger> logger;
 
 	boost::asio::awaitable<void> startAcceptor();
-	std::shared_ptr<Session> initiateSession(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
-	boost::asio::awaitable<void> handleSession(std::shared_ptr<Session> sessionToStart);
+	std::shared_ptr<Session> initiateSession();
 };

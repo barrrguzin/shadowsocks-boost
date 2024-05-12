@@ -10,12 +10,22 @@ ShadowSocksChaCha20Poly1305::ShadowSocksChaCha20Poly1305(byte* password, int siz
 	OPENSSL_EVP_BytesToKey(md5, NULL, password, sizeOfPassword, 1, this->key, KEY_LENGTH, NULL, 0);
 	this->logger->trace("Key seted: {:n}", spdlog::to_hex(this->key, this->key + KEY_LENGTH));
 };
-/*
-ShadowSocksChaCha20Poly1305::ShadowSocksChaCha20Poly1305(ShadowSocksChaCha20Poly1305& origin)
-{
 
+ShadowSocksChaCha20Poly1305::ShadowSocksChaCha20Poly1305(ShadowSocksChaCha20Poly1305& source)
+{
+	logger = source.logger;
+	std::memcpy(key, source.key, KEY_LENGTH);
+	if (!prototype)
+	{
+		encryptor = source.encryptor;
+		decryptor = source.decryptor;
+		hkdf = source.hkdf;
+		std::memcpy(encryptionIV, source.encryptionIV, KEY_LENGTH);
+		std::memcpy(decryptionIV, source.decryptionIV, KEY_LENGTH);
+		std::memcpy(decryptionSubSessionKey, source.decryptionSubSessionKey, KEY_LENGTH);
+	}
 };
-*/
+
 ShadowSocksChaCha20Poly1305::~ShadowSocksChaCha20Poly1305()
 {
 
@@ -62,16 +72,19 @@ SimpleKeyingInterface& ShadowSocksChaCha20Poly1305::getDecryptor()
 	return this->decryptor;
 }
 
+std::shared_ptr<CryptoProvider> ShadowSocksChaCha20Poly1305::clone()
+{
+	return std::make_shared<ShadowSocksChaCha20Poly1305>(*this);
+}
+
+bool & ShadowSocksChaCha20Poly1305::isPrototype()
+{
+	return prototype;
+}
+
 int ShadowSocksChaCha20Poly1305::getSaltLength()
 {
 	return SALT_LENGTH;
-}
-
-
-int ShadowSocksChaCha20Poly1305::encrypt(char* encryptedMessage, byte* plainText, const short int sizeOfPlainText)
-{
-	byte* encryptedMessageUnsigned = reinterpret_cast<byte*>(encryptedMessage);
-	return encrypt(encryptedMessageUnsigned, plainText, sizeOfPlainText);
 }
 
 int ShadowSocksChaCha20Poly1305::encrypt(byte* encryptedMessage, const byte* plainText, const short int sizeOfPlainText)
@@ -100,12 +113,6 @@ int ShadowSocksChaCha20Poly1305::encrypt(byte* encryptedMessage, const byte* pla
 	incrementNonce(encryptionIV, IV_LENGTH);
 	return ENCRYPTED_PAYLOAD_LENGTH + TAG_LENGTH + sizeOfPlainText + TAG_LENGTH + additionalBytesLength;
 };
-
-int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, char* encryptedPackage, const short int sizeOfEncryptedPackage)
-{
-	byte* encryptedPackageUnsigned = reinterpret_cast<byte*>(encryptedPackage);
-	return decrypt(recoveredMessage, encryptedPackageUnsigned, sizeOfEncryptedPackage);
-}
 
 int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, const byte* encryptedPackage, const short int sizeOfEncryptedPackage)
 {

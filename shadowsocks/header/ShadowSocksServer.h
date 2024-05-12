@@ -15,6 +15,8 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/fmt/bin_to_hex.h>
 
+#include "Cypher.h"
+
 class ShadowSocksServer
 {
 public:
@@ -29,7 +31,7 @@ private:
 	std::vector<boost::thread> threads;
 
 	void initLogger();
-	std::shared_ptr<Listener> initListener(boost::asio::ip::tcp::endpoint endpoint, std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
-	std::shared_ptr<ShadowSocksChaCha20Poly1305> initCryptoProvider(std::string password, CypherType type, std::shared_ptr<spdlog::logger> logger);
+	std::shared_ptr<Listener> initListener(boost::asio::ip::tcp::endpoint endpoint, unsigned short numberOfThreads, std::shared_ptr<CryptoProvider> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
+	std::shared_ptr<CryptoProvider> initCryptoProvider(std::string password, Cypher type, std::shared_ptr<spdlog::logger> logger);
 
 };

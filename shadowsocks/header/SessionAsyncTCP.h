@@ -20,7 +20,7 @@
 class SessionAsyncTCP : public Session
 {
 public:
-	SessionAsyncTCP(std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider, std::shared_ptr<spdlog::logger> logger, unsigned int timeout = 60);
+	SessionAsyncTCP(std::shared_ptr<CryptoProvider> cryptoProvider, std::shared_ptr<spdlog::logger> logger, unsigned int timeout = 60);
 	~SessionAsyncTCP();
 
 	boost::asio::awaitable<void> start() override;
@@ -54,8 +54,9 @@ private:
 	byte* recovered = reinterpret_cast<CryptoPP::byte*>(&(recoveredMessage[0]));
 
 	std::vector<char> encryptedMessage = std::vector<char>(socksSessionBufferSize + 66 + 1024);
+	byte* encrypted = reinterpret_cast<CryptoPP::byte*>(&(encryptedMessage[0]));
 
-	std::shared_ptr<ShadowSocksChaCha20Poly1305> cryptoProvider;
+	std::shared_ptr<CryptoProvider> cryptoProvider;
 	std::shared_ptr<spdlog::logger> logger;
 
 	std::optional<boost::asio::ip::tcp::socket> clientSocket;
