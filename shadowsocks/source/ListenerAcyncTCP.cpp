@@ -3,12 +3,13 @@
 #include <boost/bind/bind.hpp>
 
 
-ListenerAcyncTCP::ListenerAcyncTCP(boost::asio::ip::tcp::endpoint endpoint, SessionHandlerThreadManager sessionHandlerThreadManager, std::shared_ptr<CryptoProvider> cryptoProviderPrototype, std::shared_ptr<spdlog::logger> logger)
+ListenerAcyncTCP::ListenerAcyncTCP(boost::asio::ip::tcp::endpoint endpoint, SessionHandlerThreadManager sessionHandlerThreadManager, std::shared_ptr<CryptoProvider> cryptoProviderPrototype, std::shared_ptr<spdlog::logger> logger, unsigned short sessionTimeout)
 	:sessionHandlerThreadManager(std::move(sessionHandlerThreadManager))
 {
 	this->localEndpoint = std::move(endpoint);
 	this->cryptoProviderPrototype = std::move(cryptoProviderPrototype);
 	this->cryptoProviderPrototype->isPrototype() = true;
+	this->sessionTimeout = sessionTimeout;
 	this->logger = logger;
 };
 

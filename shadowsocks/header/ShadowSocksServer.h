@@ -10,6 +10,8 @@
 
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/thread/thread.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/json.hpp>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -31,7 +33,11 @@ private:
 	std::vector<boost::thread> threads;
 
 	void initLogger();
-	std::shared_ptr<Listener> initListener(boost::asio::ip::tcp::endpoint endpoint, unsigned short numberOfThreads, std::shared_ptr<CryptoProvider> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
+
+	template<typename T>
+	std::optional<T> getValueFromConfig(boost::json::object config, const std::string& key);
+
+	std::shared_ptr<Listener> initListener(boost::asio::ip::tcp::endpoint endpoint, unsigned short numberOfThreads, unsigned short sessionTimeout, std::shared_ptr<CryptoProvider> cryptoProvider, std::shared_ptr<spdlog::logger> logger);
 	std::shared_ptr<CryptoProvider> initCryptoProvider(std::string password, Cypher type, std::shared_ptr<spdlog::logger> logger);
 
 };

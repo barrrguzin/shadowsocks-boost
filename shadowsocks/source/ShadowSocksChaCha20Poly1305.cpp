@@ -130,7 +130,6 @@ int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, const byte* enc
 		incrementNonce(decryptionIV, IV_LENGTH);
 		return cypherTextLength;
 	}
-	logger->critical(sizeOfEncryptedPackage);
 	return -1;
 };
 

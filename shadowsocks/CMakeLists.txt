@@ -40,7 +40,7 @@ set(CRYPTOPP_ROOT_DIR "/home/neko/Projects/Libraries/cryptopp-build/cryptopp")
 #Target
 add_executable (shadowsocks "shadowsocks.cpp" "shadowsocks.h" ${abstract_DIR} ${header_DIR} ${source_DIR} ${enum_DIR})
 #Boost
-target_link_libraries (shadowsocks PRIVATE libboost_system.so libboost_thread.so "/home/neko/Projects/Libraries/cryptopp-build/cryptopp/libcryptopp.a" libspdlog.so libfmt.so)
+target_link_libraries (shadowsocks PRIVATE libboost_system.so libboost_thread.so libboost_json.so "/home/neko/Projects/Libraries/cryptopp-build/cryptopp/libcryptopp.a" libspdlog.so libfmt.so)
 target_include_directories(shadowsocks PRIVATE ${CRYPTOPP_ROOT_DIR})
 #+target_link_libraries (shadowsocks PRIVATE Boost::system)
 #+target_link_libraries (shadowsocks PRIVATE Boost::thread)

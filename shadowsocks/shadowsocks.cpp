@@ -1,20 +1,17 @@
 ﻿#include "shadowsocks.h"
-#include <iostream>
 
 int main(int argc, char* argv[])
 {
-
-
-	if (argc != 999/*1*/)
+	if (argc == 2)
 	{
-		ShadowSocksServer* sss = new ShadowSocksServer(argv[0]);
+		ShadowSocksServer* sss = new ShadowSocksServer(argv[1]);
 		sss->runServer();
-		//delete(sss);
+		delete(sss);
 		return 0;
 	}
 	else
 	{
-		//std::cout << "Bad arguments" << std::endl;
+		std::cerr << "Bad arguments. Example: " << argv[0] << " /path/to/configuration/file.json" << std::endl;
 		return -1;
 	}
 }

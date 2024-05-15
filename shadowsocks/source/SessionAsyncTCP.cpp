@@ -45,7 +45,6 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 		if (!clientSocket.has_value())
 			throw std::runtime_error("Client socket is not seted");
 		sessionIdentifier = clientSocket->remote_endpoint().address().to_string().append(":").append(std::to_string(clientSocket->remote_endpoint().port()));
-		logger->critical("LG: {}", logger.use_count());
 		logger->info("Trying to start the session with client {}:{}...", clientSocket->remote_endpoint().address().to_string(), clientSocket->remote_endpoint().port());
 		auto [errorCode, received] = co_await boost::asio::async_read(*clientSocket, boost::asio::buffer(clientToRemoteServerBuffer, socksSessionBufferSize),
 			boost::asio::transfer_exactly(cryptoProvider->getSaltLength()), completionToken);
@@ -61,15 +60,14 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 	}
 	catch (const std::exception& exception)
 	{
-		logger->critical("Exception caught in start: {}", exception.what());
+		logger->warn("Unable to start session from {}:{}; Exception: {}", clientSocket->remote_endpoint().address().to_string(), clientSocket->remote_endpoint().port(), exception.what());
 		throw std::exception(exception);
 	}
 };
 
 SessionAsyncTCP::~SessionAsyncTCP()
 {
-	logger->warn("Stop proxy session: {} X<->X {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
-	logger->critical("LG: {}", logger.use_count());
+	logger->info("Stop proxy session: {} X<->X {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
 };
 
 std::string& SessionAsyncTCP::getSessionIdentifier()
@@ -132,7 +130,7 @@ boost::asio::awaitable<int> SessionAsyncTCP::receiveAndDecryptChunk(char* desten
 	}
 	catch (const std::exception& exception)
 	{
-		logger->critical("Exception caught in receiveAndDecryptChunk: {}", exception.what());
+		logger->warn("Unable to handle shadowsocks package from {}; Exception: {}", sessionIdentifier, exception.what());
 		throw std::exception(exception);
 	}
 };
@@ -176,7 +174,6 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 	}
 	catch (const std::exception& exception)
 	{
-		logger->critical("Exception caught in handleSessionHandshake: {}", exception.what());
 		throw std::exception(exception);
 	}
 };
@@ -214,7 +211,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::startMessageExchange()
 	}
 	catch (const std::exception& exception)
 	{
-		logger->critical("Exception caught in startMessageExchange: {}", exception.what());
+		logger->warn("Unable to start message exchange in session {} <-> {} ({}); Exception: {}", sessionIdentifier, remoteIdentifier, remoteHostName, exception.what());
 		throw std::exception(exception);
 	}
 };
@@ -240,7 +237,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::localToRemoteStream()
 	}
 	catch (const std::exception& exception)
 	{
-		logger->critical("Exception caught in localToRemoteStream: {}", exception.what());
+		logger->debug("Exeption in session: {} -> {} ({}); Exception: {}", sessionIdentifier, remoteIdentifier, remoteHostName, exception.what());
 		throw std::exception(exception);
 	}
 
@@ -275,7 +272,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::remoteToLocalStream(int length)
 	}
 	catch (const std::exception& exception)
 	{
-		logger->critical("Exception caught in initRemoteToLocalStream: {}", exception.what());
+		logger->debug("Exeption in session: {} <- {} ({}); Exception: {}", sessionIdentifier, remoteIdentifier, remoteHostName, exception.what());
 		throw std::exception(exception);
 	}
 };

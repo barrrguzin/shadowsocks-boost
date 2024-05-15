@@ -13,15 +13,12 @@ SessionHandlerThread::SessionHandlerThread(int threadNumber, std::shared_ptr<spd
 }
 
 SessionHandlerThread::~SessionHandlerThread()
-{
-    logger->critical("THREAD DESTR");
-}
+{}
 
 void SessionHandlerThread::initThread()
 {
     boost::asio::co_spawn(*ioContext, boost::bind(&SessionHandlerThread::waitSession, this), boost::asio::detached);
     ioContext->run();
-    logger->critical("CONTEXT RETURND");
 }
 
 void SessionHandlerThread::startSession(std::shared_ptr<Session> session)
@@ -65,7 +62,7 @@ boost::asio::awaitable<void> SessionHandlerThread::runSession(std::shared_ptr<Se
     }
     catch (const std::exception& exception)
     {
-        logger->critical("T{}; Exception caught in runSession: {}", threadNumber, exception.what());
+        logger->error("T{}; Got exception from running session: {}", threadNumber, exception.what());
     }
 }
 

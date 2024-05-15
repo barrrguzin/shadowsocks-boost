@@ -15,11 +15,12 @@
 class ListenerAcyncTCP : public Listener
 {
 public:
-	ListenerAcyncTCP(boost::asio::ip::tcp::endpoint endpoint, SessionHandlerThreadManager sessionHandlerThreadManager, std::shared_ptr<CryptoProvider> cryptoProviderPrototype, std::shared_ptr<spdlog::logger> logger);
+	ListenerAcyncTCP(boost::asio::ip::tcp::endpoint endpoint, SessionHandlerThreadManager sessionHandlerThreadManager, std::shared_ptr<CryptoProvider> cryptoProviderPrototype, std::shared_ptr<spdlog::logger> logger, unsigned short sessionTimeout = 60);
 	~ListenerAcyncTCP();
 	void startListener() override;
 
 private:
+	unsigned short sessionTimeout;
 	unsigned long sessionCounter = 0;
 	boost::asio::ip::tcp::endpoint localEndpoint;
 	boost::asio::io_context ioContext;
