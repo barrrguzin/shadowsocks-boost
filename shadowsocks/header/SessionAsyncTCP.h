@@ -39,7 +39,7 @@ private:
 	std::string remoteIdentifier;
 	std::string remoteHostName;
 
-	bool isEsteblished = false;
+	bool isOpen = true;
 
 	int socksSessionBufferSize = 1440;//1440//1380 maybe used
 	int clientSideBufferSize = 16383; //max shadowsocks payload size with aead cypher

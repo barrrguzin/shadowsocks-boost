@@ -15,7 +15,10 @@
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/syslog_sink.h>
 #include <spdlog/fmt/bin_to_hex.h>
+
 
 #include "Cypher.h"
 
@@ -27,12 +30,12 @@ public:
 	void runServer();
 
 private:
-	std::shared_ptr<spdlog::logger> logger;
+	//std::shared_ptr<spdlog::logger> logger;
 	std::vector<boost::asio::ip::tcp::endpoint> endpoints;
 
 	std::vector<boost::thread> threads;
 
-	void initLogger();
+	std::shared_ptr<spdlog::logger> initLogger(std::string logLevel = "info", std::string loggerType = "ud", int syslogNumber = 7, std::string logName = "shadowsocks");
 
 	template<typename T>
 	std::optional<T> getValueFromConfig(boost::json::object config, const std::string& key);

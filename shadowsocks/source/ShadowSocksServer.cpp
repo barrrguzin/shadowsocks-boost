@@ -1,36 +1,48 @@
 #include "ShadowSocksServer.h"
 
+#include <iostream>
+
 #include "CryptoProviderFactory.h"
 
 
 ShadowSocksServer::ShadowSocksServer(const char* pathToConfig)
 {
-	initLogger();
-	//std::stringstream ss;
-	//ss << "{\"instances\": [{\"server\": \"127.0.0.1\", \"server_port\": 7777, \"password\": \"123\", \"threads\": 10, \"timeout\": 60}]}";
-
 	std::ifstream configFIle(pathToConfig);
 	boost::property_tree::ptree pt;
 	boost::property_tree::json_parser::read_json(configFIle, pt);
 	auto instances = pt.get_child("instances");
 	auto instance = instances.begin();
+
+	std::string loggerType = pt.find("logger_type")->second.data();
+	std::string logName = pt.find("log_name")->second.data();
+	std::string logLevel = "info";
+	if (pt.find("logger_level") != pt.not_found())
+		logLevel = pt.find("logger_level")->second.data();
+	int syslogChannel = 7;
+	if (pt.find("syslog_channel") != pt.not_found())
+		syslogChannel = std::stoi(pt.find("syslog_channel")->second.data());
+	std::shared_ptr<spdlog::logger> logger = initLogger(logLevel, loggerType, syslogChannel , logName);
+
 	while (instance != instances.end())
 	{
 		try
 		{
-			//std::string instanceType = instance->second.find("instance_type")->second.data();
+			auto fields = instance->second;
 
-			std::string listenerAddress = instance->second.find("server")->second.data();
-			int listenerPort = std::stoi(instance->second.find("server_port")->second.data());
+			std::string listenerAddress = fields.find("server")->second.data();
+			int listenerPort = 1080;
+			if (fields.find("server_port") != fields.not_found())
+				listenerPort = std::stoi(fields.find("server_port")->second.data());
 
 			//std::string cypheType = instance->second.find("cypher_type")->second.data();
-			std::string password = instance->second.find("password")->second.data();
+			std::string password = fields.find("password")->second.data();
 
-			int threadNumber = std::stoi(instance->second.find("threads")->second.data());
-			int timeout = std::stoi(instance->second.find("timeout")->second.data());
-
-			//std::string loggerType = instance->second.find("logger_type")->second.data();
-			//std::string loggerPath = instance->second.find("logger_path")->second.data();
+			int threadNumber = 1;
+			if (fields.find("threads") != fields.not_found())
+				threadNumber = std::stoi(fields.find("threads")->second.data());
+			int timeout = 60;
+			if (fields.find("timeout") != fields.not_found())
+				timeout = std::stoi(fields.find("timeout")->second.data());
 
 			auto endpoint = boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string(listenerAddress), listenerPort);
 			std::shared_ptr<CryptoProvider> cryptoProvider = initCryptoProvider(password, Cypher::ChaCha20Poly1305, logger);
@@ -41,24 +53,10 @@ ShadowSocksServer::ShadowSocksServer(const char* pathToConfig)
 			instance++;
 		} catch (std::exception& exception)
 		{
+			std::cerr << "Unable to parse listener configuration. Trying next one if exists..." << std::endl;
 			instance++;
 		}
 	}
-
-
-
-	/*
-	auto endpointTemp = boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string("127.0.0.1"), 7777);
-	endpoints.push_back(endpointTemp);
-	for (boost::asio::ip::tcp::endpoint endpoint : endpoints)
-	{
-		std::string pass("123");
-		std::shared_ptr<CryptoProvider> cryptoProvider = initCryptoProvider(pass, Cypher::ChaCha20Poly1305, logger);
-		std::shared_ptr<Listener> listener = initListener(std::move(endpoint), 10, std::move(cryptoProvider), logger);
-		threads.emplace_back(boost::thread(boost::bind(&Listener::startListener, listener)));
-		logger->trace("Listener started; Logger UC: {}", logger.use_count());
-	}
-	 */
 };
 
 template<typename T>
@@ -86,11 +84,31 @@ ShadowSocksServer::~ShadowSocksServer()
 
 };
 
-void ShadowSocksServer::initLogger()
+std::shared_ptr<spdlog::logger> ShadowSocksServer::initLogger(std::string logLevel, std::string loggerType, int syslogNumber, std::string logName)
 {
-	logger = spdlog::stdout_color_mt("console");
-	logger->set_level(spdlog::level::debug);
-	logger->trace("Logger inited");
+	std::shared_ptr<spdlog::logger> logger;
+	if (loggerType == "syslog")
+	{
+		logger = spdlog::syslog_logger_mt("syslog", logName, syslogNumber);
+		std::cout << "Logging into syslog. Level: " << logLevel << "; Identificator: " << logName << "; Channel: " << syslogNumber << std::endl;
+	}
+	else if (loggerType == "basic_logger")
+	{
+		logger = spdlog::basic_logger_mt("basic_logger", logName);
+		std::cout << "Logging into file. Level: " << logLevel << "; File: " << logName << std::endl;
+	}
+	else if	(loggerType == "console")
+	{
+		logger = spdlog::stdout_color_mt("console");
+		std::cout << "Logging into stdout. Level: " << logLevel << std::endl;
+	}
+	else
+	{
+		logger = spdlog::syslog_logger_mt("syslog", "shadowsocks", LOG_LOCAL7);
+		std::cout << "Logging into syslog. Level: " << logLevel << "; Identificator: shadowsocks; Channel: " << syslogNumber << std::endl;
+	}
+	logger->set_level(spdlog::level::from_str(logLevel));
+	return logger;
 };
 
 void ShadowSocksServer::runServer()

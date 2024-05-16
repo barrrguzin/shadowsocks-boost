@@ -130,7 +130,7 @@ int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, const byte* enc
 		incrementNonce(decryptionIV, IV_LENGTH);
 		return cypherTextLength;
 	}
-	return -1;
+	throw std::runtime_error("Unable to decrypt payload");
 };
 
 int ShadowSocksChaCha20Poly1305::OPENSSL_EVP_BytesToKey(HashTransformation& hash,

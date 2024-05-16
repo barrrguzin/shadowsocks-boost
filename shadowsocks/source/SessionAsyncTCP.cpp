@@ -53,14 +53,16 @@ boost::asio::awaitable<void> SessionAsyncTCP::start()
 			throw std::runtime_error("Can not receive salt");
 
 		co_await (handleSessionHandshake() || watchdog());
-
+		/*
 		boost::asio::steady_timer timer(clientSocket->get_executor());
 		timer.expires_at(std::chrono::steady_clock::now() + std::chrono::seconds(10));
 		co_await timer.async_wait(completionToken);
+		*/
 	}
 	catch (const std::exception& exception)
 	{
 		logger->warn("Unable to start session from {}:{}; Exception: {}", clientSocket->remote_endpoint().address().to_string(), clientSocket->remote_endpoint().port(), exception.what());
+		closeSession();
 		throw std::exception(exception);
 	}
 };
@@ -110,10 +112,8 @@ boost::asio::awaitable<int> SessionAsyncTCP::receiveAndDecryptChunk(char* desten
 		{
 			std::tie(errorCode, reReaderSize) = co_await boost::asio::async_read(*clientSocket, boost::asio::buffer(&(clientToRemoteServerBuffer[0])+received, socksSessionBufferSize),
 			boost::asio::transfer_exactly(payloadSizeToRead-received), completionToken);
-
 			if (errorCode)
 				throw std::length_error("Can not receive payload");
-
 			received = received + reReaderSize;
 		}
 
@@ -128,9 +128,14 @@ boost::asio::awaitable<int> SessionAsyncTCP::receiveAndDecryptChunk(char* desten
 		logger->debug("{} byte package recieved from {} and decrypted succsessfuly", palyoadLength, sessionIdentifier);
 		co_return palyoadLength;
 	}
+	catch (const std::runtime_error& exception)
+	{
+		logger->critical("{} from: {}", exception.what(), sessionIdentifier);
+		throw std::exception(exception);
+	}
 	catch (const std::exception& exception)
 	{
-		logger->warn("Unable to handle shadowsocks package from {}; Exception: {}", sessionIdentifier, exception.what());
+		logger->debug("Unable to handle shadowsocks package from {}; Exception: {}", sessionIdentifier, exception.what());
 		throw std::exception(exception);
 	}
 };
@@ -168,12 +173,13 @@ boost::asio::awaitable<void> SessionAsyncTCP::handleSessionHandshake()
 		}
 		else
 		{
-			logger->warn("Unable to session: {} -> {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
+			logger->debug("Unable to session: {} -> {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
 			throw std::runtime_error("Unable to start session");
 		}
 	}
 	catch (const std::exception& exception)
 	{
+		closeSession();
 		throw std::exception(exception);
 	}
 };
@@ -205,13 +211,12 @@ boost::asio::awaitable<void> SessionAsyncTCP::startMessageExchange()
 		if (ecr || received <= 0)
 			throw std::runtime_error("Unable to receive first response from remote");
 
-		isEsteblished = true;
 		co_await (localToRemoteStream() || remoteToLocalStream(received) || watchdog());
-		closeSession();
 	}
 	catch (const std::exception& exception)
 	{
-		logger->warn("Unable to start message exchange in session {} <-> {} ({}); Exception: {}", sessionIdentifier, remoteIdentifier, remoteHostName, exception.what());
+		logger->debug("Unable to start message exchange in session {} <-> {} ({}); Exception: {}", sessionIdentifier, remoteIdentifier, remoteHostName, exception.what());
+		closeSession();
 		throw std::exception(exception);
 	}
 };
@@ -221,7 +226,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::localToRemoteStream()
 	logger->debug("Start local to remote stream: {} -> {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
 	try
 	{
-		while (isEsteblished)
+		while (isOpen)
 		{
 			resetTimeoutTimer();
 			int payloadLength = co_await receiveAndDecryptChunk(&(recoveredMessage[0]), socksSessionBufferSize);
@@ -232,12 +237,13 @@ boost::asio::awaitable<void> SessionAsyncTCP::localToRemoteStream()
 			if (ec)
 				break;
 		}
-		isEsteblished = false;
 		logger->debug("Stop local to remote stream: {} X-> {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
+		closeSession();
 	}
 	catch (const std::exception& exception)
 	{
 		logger->debug("Exeption in session: {} -> {} ({}); Exception: {}", sessionIdentifier, remoteIdentifier, remoteHostName, exception.what());
+		closeSession();
 		throw std::exception(exception);
 	}
 
@@ -255,7 +261,7 @@ boost::asio::awaitable<void> SessionAsyncTCP::remoteToLocalStream(int length)
 			throw std::runtime_error("Unable to transmit first package from remote to client");
 
 		logger->debug("Start remote to local stream: {} <- {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
-		while (isEsteblished)
+		while (isOpen)
 		{
 			resetTimeoutTimer();
 			auto [ecr, received] = co_await remoteSocket->async_receive(boost::asio::buffer(remoteToClientServerBuffer, socksSessionBufferSize), completionToken);
@@ -267,12 +273,13 @@ boost::asio::awaitable<void> SessionAsyncTCP::remoteToLocalStream(int length)
 			if (ecs)
 				break;
 		}
-		isEsteblished = false;
 		logger->debug("Stop remote to local stream: {} <-X {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
+		closeSession();
 	}
 	catch (const std::exception& exception)
 	{
 		logger->debug("Exeption in session: {} <- {} ({}); Exception: {}", sessionIdentifier, remoteIdentifier, remoteHostName, exception.what());
+		closeSession();
 		throw std::exception(exception);
 	}
 };
@@ -288,14 +295,19 @@ char* SessionAsyncTCP::setSalt()
 
 void SessionAsyncTCP::closeSession()
 {
-	if (clientSocket.has_value())
+	if (isOpen)
 	{
-		clientSocket->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-		clientSocket->close();
-	}
-	if (remoteSocket.has_value())
-	{
-		remoteSocket->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
-		remoteSocket->close();
+		if (clientSocket.has_value())
+		{
+			clientSocket->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+			clientSocket->close();
+		}
+		if (remoteSocket.has_value())
+		{
+			remoteSocket->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+			remoteSocket->close();
+		}
+		isOpen = false;
+		deadline = std::max(deadline, std::chrono::steady_clock::now());
 	}
 };
