@@ -89,29 +89,10 @@ int ShadowSocksChaCha20Poly1305::getSaltLength()
 
 int ShadowSocksChaCha20Poly1305::encrypt(byte* encryptedMessage, const byte* plainText, const short int sizeOfPlainText)
 {
-	this->logger->trace("Encryption start with IV: {:n}", spdlog::to_hex(encryptionIV, encryptionIV + IV_LENGTH));
-	short additionalBytesLength = 0;
-	//prepare pointers
-	byte* EPL = encryptedMessage;
-	byte* EPL_TAG = &encryptedMessage[ENCRYPTED_PAYLOAD_LENGTH];
-	byte* EP = &encryptedMessage[ENCRYPTED_PAYLOAD_LENGTH + TAG_LENGTH];
-	byte* EP_TAG = &encryptedMessage[ENCRYPTED_PAYLOAD_LENGTH + TAG_LENGTH + sizeOfPlainText];
-
-	//encrypt payload length
-	byte payloadLengthBytesR[2];
-	std::memcpy(payloadLengthBytesR, &sizeOfPlainText, 2);
-	byte payloadLengthBytes[2] = { payloadLengthBytesR[1], payloadLengthBytesR[0] };
-
-	encryptor.EncryptAndAuthenticate(EPL, EPL_TAG, TAG_LENGTH, encryptionIV, IV_LENGTH, NULL, 0, payloadLengthBytes, ENCRYPTED_PAYLOAD_LENGTH);
-
-	//increment IV
+	encryptor.EncryptAndAuthenticate(encryptedMessage, encryptedMessage+sizeOfPlainText, TAG_LENGTH, encryptionIV, IV_LENGTH, NULL, 0, plainText, sizeOfPlainText);
+	this->logger->trace("Encrypted message: {:n}", spdlog::to_hex(encryptedMessage, encryptedMessage + sizeOfPlainText + TAG_LENGTH));
 	incrementNonce(encryptionIV, IV_LENGTH);
-
-	//encrypt payload
-	encryptor.EncryptAndAuthenticate(EP, EP_TAG, TAG_LENGTH, encryptionIV, IV_LENGTH, NULL, 0, plainText, sizeOfPlainText);
-	//increment IV
-	incrementNonce(encryptionIV, IV_LENGTH);
-	return ENCRYPTED_PAYLOAD_LENGTH + TAG_LENGTH + sizeOfPlainText + TAG_LENGTH + additionalBytesLength;
+	return sizeOfPlainText + TAG_LENGTH;
 };
 
 int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, const byte* encryptedPackage, const short int sizeOfEncryptedPackage)
@@ -127,6 +108,7 @@ int ShadowSocksChaCha20Poly1305::decrypt(byte* recoveredMessage, const byte* enc
 		cypherTextLength);//cypher text length
 	if (decrypted)
 	{
+		this->logger->trace("Decrypted message: {:n}", spdlog::to_hex(recoveredMessage, recoveredMessage + cypherTextLength));
 		incrementNonce(decryptionIV, IV_LENGTH);
 		return cypherTextLength;
 	}

@@ -73,6 +73,7 @@ private:
 	void resetTimeoutTimer();
 
 	boost::asio::awaitable<int> receiveAndDecryptChunk(char* destenationBuffer, int destenationBufferSize);
+	boost::asio::awaitable<int> encryptChunkAndSend(byte* sourceBuffer, int messageLength);
 
 	char* setSalt();
 };

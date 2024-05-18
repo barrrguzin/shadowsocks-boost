@@ -77,6 +77,32 @@ std::string& SessionAsyncTCP::getSessionIdentifier()
 	return sessionIdentifier;
 };
 
+boost::asio::awaitable<int> SessionAsyncTCP::encryptChunkAndSend(byte* sourceBuffer, int messageLength)
+{
+	try
+	{
+		byte payloadLengthBytesR[2];
+		std::memcpy(payloadLengthBytesR, &messageLength, 2);
+		byte payloadLengthBytes[2] = { payloadLengthBytesR[1], payloadLengthBytesR[0] };
+		int encryptedPayloadLengthLength = cryptoProvider->encrypt(encrypted, payloadLengthBytes, 2);
+		auto [ecL, sendL] = co_await clientSocket->async_send(boost::asio::buffer(encryptedMessage, encryptedPayloadLengthLength), completionToken);
+		if (ecL)
+			throw std::runtime_error("Unable to send encrypted payload length to client");
+
+		int encryptedPayloadLength = cryptoProvider->encrypt(encrypted, sourceBuffer, messageLength);
+		auto [ecP, sendP] = co_await clientSocket->async_send(boost::asio::buffer(encryptedMessage, encryptedPayloadLength), completionToken);
+		if (ecP)
+			throw std::runtime_error("Unable to send encrypted payload to client");
+
+		co_return encryptedPayloadLength;
+	}
+	catch (const std::exception& exception)
+	{
+		logger->debug("Unable to handle shadowsocks package from {}; Exception: {}", sessionIdentifier, exception.what());
+		throw std::exception(exception);
+	}
+}
+
 boost::asio::awaitable<int> SessionAsyncTCP::receiveAndDecryptChunk(char* destenationBuffer, int destenationBufferSize)
 {
 	try
@@ -230,8 +256,6 @@ boost::asio::awaitable<void> SessionAsyncTCP::localToRemoteStream()
 		{
 			resetTimeoutTimer();
 			int payloadLength = co_await receiveAndDecryptChunk(&(recoveredMessage[0]), socksSessionBufferSize);
-			if (payloadLength <= 0)
-				break;
 
 			auto [ec, send] = co_await remoteSocket->async_send(boost::asio::buffer(recoveredMessage, payloadLength), completionToken);
 			if (ec)
@@ -254,24 +278,17 @@ boost::asio::awaitable<void> SessionAsyncTCP::remoteToLocalStream(int length)
 	try
 	{
 		char* addressAfterSalt = setSalt();
-		int encryptedMessageLength = cryptoProvider->encrypt(reinterpret_cast<byte*>(addressAfterSalt), palinTextByte, length);
-
-		auto [ec, send] = co_await clientSocket->async_send(boost::asio::buffer(encryptedMessage, encryptedMessageLength + cryptoProvider->getSaltLength()), completionToken);
+		auto [ec, send] = co_await clientSocket->async_send(boost::asio::buffer(encryptedMessage, cryptoProvider->getSaltLength()), completionToken);
 		if (ec)
 			throw std::runtime_error("Unable to transmit first package from remote to client");
-
-		logger->debug("Start remote to local stream: {} <- {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
+		int sendedMessageLength = co_await encryptChunkAndSend(palinTextByte, length);
 		while (isOpen)
 		{
 			resetTimeoutTimer();
 			auto [ecr, received] = co_await remoteSocket->async_receive(boost::asio::buffer(remoteToClientServerBuffer, socksSessionBufferSize), completionToken);
 			if (ecr || received <= 0)
 				break;
-
-			int encryptedMessageLength = cryptoProvider->encrypt(encrypted, palinTextByte, received);
-			auto [ecs, send] = co_await clientSocket->async_send(boost::asio::buffer(encryptedMessage, encryptedMessageLength), completionToken);
-			if (ecs)
-				break;
+			int sendedMessageLength = co_await encryptChunkAndSend(palinTextByte, received);
 		}
 		logger->debug("Stop remote to local stream: {} <-X {} ({})", sessionIdentifier, remoteIdentifier, remoteHostName);
 		closeSession();
@@ -290,6 +307,7 @@ char* SessionAsyncTCP::setSalt()
 	cryptoProvider->prepareSubSessionKey(cryptoProvider->getEncryptor(), (byte*) SALT);
 	std::memcpy(&(encryptedMessage[0]), SALT, cryptoProvider->getSaltLength());
 	delete[] SALT;
+	this->logger->trace("Encripted stream started with SALT: {:n}", spdlog::to_hex(&(encryptedMessage[0]), &(encryptedMessage[0]) + cryptoProvider->getSaltLength()));
 	return &(encryptedMessage[cryptoProvider->getSaltLength()]);
 };
 

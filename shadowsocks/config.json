@@ -1,4 +1,6 @@
 {
+  "logger_type": "console",
+  "logger_level": "trace",
   "instances": 
   [
     {
